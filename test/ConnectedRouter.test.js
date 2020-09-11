@@ -5,6 +5,7 @@ import { createStore, combineReducers, applyMiddleware, compose } from 'redux'
 import { ActionCreators, instrument } from 'redux-devtools'
 import Enzyme from 'enzyme'
 import Adapter from 'enzyme-adapter-react-16'
+import { act } from 'react-dom/test-utils'
 import { createMemoryHistory } from 'history'
 import { Route } from 'react-router'
 import { Provider } from 'react-redux'
@@ -18,6 +19,17 @@ import { connectRouter, ConnectedRouter, routerMiddleware } from '../src'
 Enzyme.configure({ adapter: new Adapter() })
 
 const { mount } = Enzyme
+
+// To fix the following warning
+// Warning: An update to Router inside a test was not wrapped in act(...)
+// We need to call this function with a mounted wrapper
+// See https://github.com/enzymejs/enzyme/issues/2073.
+const waitForComponentToPaint = async (wrapper) => {
+   await act(async () => {
+     await new Promise(resolve => setTimeout(resolve, 0))
+     wrapper.update()
+   })
+}
 
 describe('ConnectedRouter', () => {
   let props
@@ -67,13 +79,13 @@ describe('ConnectedRouter', () => {
     })
 
     it('calls `props.onLocationChanged()` when location changes.', () => {
-      mount(
+      waitForComponentToPaint(mount(
         <Provider store={store}>
           <ConnectedRouter {...props}>
-            <Route path="/" render={() => <div>Home</div>} />
+            <Route path="/" element={<div>Home</div>} />
           </ConnectedRouter>
         </Provider>
-      )
+      ))
 
       expect(onLocationChangedSpy.mock.calls).toHaveLength(1)
 
@@ -87,7 +99,7 @@ describe('ConnectedRouter', () => {
       const wrapper = mount(
         <Provider store={store}>
           <ConnectedRouter {...props}>
-            <Route path="/" render={() => <div>Home</div>} />
+            <Route path="/" element={<div>Home</div>} />
           </ConnectedRouter>
         </Provider>
       )
@@ -107,13 +119,13 @@ describe('ConnectedRouter', () => {
 
     it('supports custom context', () => {
       const context = React.createContext(null)
-      mount(
+      waitForComponentToPaint(mount(
         <Provider store={store} context={context}>
           <ConnectedRouter {...props} context={context}>
-            <Route path="/" render={() => <div>Home</div>} />
+            <Route path="/" element={<div>Home</div>} />
           </ConnectedRouter>
         </Provider>
-      )
+      ))
 
       expect(onLocationChangedSpy.mock.calls).toHaveLength(1)
 
@@ -124,15 +136,14 @@ describe('ConnectedRouter', () => {
     })
 
     it('supports location state and key', () => {
-      mount(
+      waitForComponentToPaint(mount(
         <Provider store={store}>
           <ConnectedRouter {...props}>
-            <Route path="/" render={() => <div>Home</div>} />
+            <Route path="/" element={<div>Home</div>} />
           </ConnectedRouter>
         </Provider>
-      )
-      props.history.push({ pathname: '/new-location', state: { foo: 'bar' } })
-
+      ))
+      props.history.push('/new-location', { foo: 'bar' })
       expect(onLocationChangedSpy.mock.calls[1][0].state).toEqual({ foo: 'bar'})
     })
 
@@ -308,13 +319,13 @@ describe('ConnectedRouter', () => {
         return null
       }
 
-      mount(
+      waitForComponentToPaint(mount(
         <Provider store={store}>
           <ConnectedRouter {...props}>
-              <Route path="/" component={RenderCounter} />
+            <Route path="/" element={<RenderCounter />} />
           </ConnectedRouter>
         </Provider>
-      )
+      ))
 
       expect(renderCount).toBe(1)
     })
@@ -327,8 +338,9 @@ describe('ConnectedRouter', () => {
       store = createStore(
         combineReducers({
           incrementReducer: (state = 0, action = {}) => {
-            if (action.type === 'testAction')
+            if (action.type === 'testAction') {
               return ++state
+            }
 
             return state
           },
@@ -337,33 +349,34 @@ describe('ConnectedRouter', () => {
         compose(applyMiddleware(routerMiddleware(history)))
       )
 
-
       const RenderCounter = () => {
         renderCount++
         return null
       }
 
-      mount(
+      waitForComponentToPaint(mount(
         <Provider store={store}>
           <ConnectedRouter {...props}>
-              <Route path="/" component={RenderCounter} />
+            <Route path="/" element={<RenderCounter />} />
           </ConnectedRouter>
         </Provider>
-      )
-
+      ))
+      // Non-related action does not cause re-rendering
       store.dispatch({ type: 'testAction' })
+      // By using children under Route, it doesn't re-render the same component.
       history.push('/new-location')
-      expect(renderCount).toBe(2)
+      // The only rendering is when being mounted.
+      expect(renderCount).toBe(1)
     })
 
     it('does not call `props.onLocationChanged()` on intial location when `noInitialPop` prop is passed ', () => {
-      mount(
+      waitForComponentToPaint(mount(
         <Provider store={store}>
           <ConnectedRouter {...props} noInitialPop>
-            <Route path="/" render={() => <div>Home</div>} />
+            <Route path="/" element={<div>Home</div>} />
           </ConnectedRouter>
         </Provider>
-      )
+      ))
 
       expect(onLocationChangedSpy.mock.calls).toHaveLength(0)
     })
@@ -377,13 +390,13 @@ describe('ConnectedRouter', () => {
     })
 
     it('calls `props.onLocationChanged()` when location changes.', () => {
-      mount(
+      waitForComponentToPaint(mount(
         <Provider store={store}>
           <ConnectedRouter {...props}>
-            <Route path="/" render={() => <div>Home</div>} />
+            <Route path="/" element={<div>Home</div>} />
           </ConnectedRouter>
         </Provider>
-      )
+      ))
 
       expect(onLocationChangedSpy.mock.calls).toHaveLength(1)
 
@@ -397,10 +410,11 @@ describe('ConnectedRouter', () => {
       const wrapper = mount(
         <Provider store={store}>
           <ConnectedRouter {...props}>
-            <Route path="/" render={() => <div>Home</div>} />
+            <Route path="/" element={<div>Home</div>} />
           </ConnectedRouter>
         </Provider>
       )
+      waitForComponentToPaint(wrapper)
 
       expect(onLocationChangedSpy.mock.calls).toHaveLength(1)
 
@@ -417,13 +431,13 @@ describe('ConnectedRouter', () => {
 
     it('supports custom context', () => {
       const context = React.createContext(null)
-      mount(
+      waitForComponentToPaint(mount(
         <Provider store={store} context={context}>
           <ConnectedRouter {...props} context={context}>
-            <Route path="/" render={() => <div>Home</div>} />
+            <Route path="/" element={<div>Home</div>} />
           </ConnectedRouter>
         </Provider>
-      )
+      ))
 
       expect(onLocationChangedSpy.mock.calls).toHaveLength(1)
 
@@ -441,13 +455,13 @@ describe('ConnectedRouter', () => {
         return null
       }
 
-      mount(
+      waitForComponentToPaint(mount(
         <Provider store={store}>
           <ConnectedRouter {...props}>
-              <Route path="/" component={RenderCounter} />
+            <Route path="/" element={<RenderCounter />} />
           </ConnectedRouter>
         </Provider>
-      )
+      ))
 
       expect(renderCount).toBe(1)
     })
@@ -476,17 +490,20 @@ describe('ConnectedRouter', () => {
         return null
       }
 
-      mount(
+      waitForComponentToPaint(mount(
         <Provider store={store}>
           <ConnectedRouter {...props}>
-              <Route path="/" component={RenderCounter} />
+            <Route path="/" element={<RenderCounter />} />
           </ConnectedRouter>
         </Provider>
-      )
+      ))
 
+      // Non-related action does not cause re-rendering
       store.dispatch({ type: 'testAction' })
+      // By using children under Route, it doesn't re-render the same component.
       history.push('/new-location')
-      expect(renderCount).toBe(2)
+      // The only rendering is when being mounted.
+      expect(renderCount).toBe(1)
     })
   })
 
@@ -498,13 +515,13 @@ describe('ConnectedRouter', () => {
     })
 
     it('calls `props.onLocationChanged()` when location changes.', () => {
-      mount(
+      waitForComponentToPaint(mount(
         <Provider store={store}>
           <ConnectedRouter {...props}>
-            <Route path="/" render={() => <div>Home</div>} />
+            <Route path="/" element={<div>Home</div>} />
           </ConnectedRouter>
         </Provider>
-      )
+      ))
 
       expect(onLocationChangedSpy.mock.calls).toHaveLength(1)
 
@@ -518,10 +535,11 @@ describe('ConnectedRouter', () => {
       const wrapper = mount(
         <Provider store={store}>
           <ConnectedRouter {...props}>
-            <Route path="/" render={() => <div>Home</div>} />
+            <Route path="/" element={<div>Home</div>} />
           </ConnectedRouter>
         </Provider>
       )
+      waitForComponentToPaint(wrapper)
 
       expect(onLocationChangedSpy.mock.calls).toHaveLength(1)
 
@@ -544,13 +562,13 @@ describe('ConnectedRouter', () => {
         return null
       }
 
-      mount(
+      waitForComponentToPaint(mount(
         <Provider store={store}>
           <ConnectedRouter {...props}>
-              <Route path="/" component={RenderCounter} />
+            <Route path="/" element={<RenderCounter />} />
           </ConnectedRouter>
         </Provider>
-      )
+      ))
 
       expect(renderCount).toBe(1)
     })
@@ -579,17 +597,20 @@ describe('ConnectedRouter', () => {
         return null
       }
 
-      mount(
+      waitForComponentToPaint(mount(
         <Provider store={store}>
           <ConnectedRouter {...props}>
-              <Route path="/" component={RenderCounter} />
+            <Route path="/" element={<RenderCounter />} />
           </ConnectedRouter>
         </Provider>
-      )
+      ))
 
+      // Non-related action does not cause re-rendering
       store.dispatch({ type: 'testAction' })
+      // By using children under Route, it doesn't re-render the same component.
       history.push('/new-location')
-      expect(renderCount).toBe(2)
+      // The only rendering is when being mounted.
+      expect(renderCount).toBe(1)
     })
   })
 
@@ -609,16 +630,16 @@ describe('ConnectedRouter', () => {
     })
 
     it('resets to the initial url', () => {
-      mount(
+      waitForComponentToPaint(mount(
         <Provider store={store}>
           <ConnectedRouter {...props}>
             <div>Test</div>
           </ConnectedRouter>
         </Provider>
-      )
+      ))
 
       let currentPath
-      const historyUnsubscribe = history.listen(location => {
+      const historyUnsubscribe = history.listen(({location}) => {
         currentPath = location.pathname
       })
 
@@ -631,16 +652,16 @@ describe('ConnectedRouter', () => {
     })
 
     it('handles toggle after history change', () => {
-      mount(
+      waitForComponentToPaint(mount(
         <Provider store={store}>
           <ConnectedRouter {...props}>
             <div>Test</div>
           </ConnectedRouter>
         </Provider>
-      )
+      ))
 
       let currentPath
-      const historyUnsubscribe = history.listen(location => {
+      const historyUnsubscribe = history.listen(({location}) => {
         currentPath = location.pathname
       })
 
